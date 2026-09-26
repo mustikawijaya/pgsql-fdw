@@ -128,8 +128,13 @@ Run the test suite using PHPUnit:
 ./vendor/bin/phpunit
 ```
 
+## Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, development setup, and pull request guidelines.
+
 ---
 
 ## License
 
 The MIT License (MIT). Please see [License File](LICENSE) for more information.
+

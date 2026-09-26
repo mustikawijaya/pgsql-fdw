@@ -103,6 +103,11 @@ class FdwLifecycleIntegrationTest extends TestCase
         $this->assertEquals('99.95', $data[0]->price);
 
         // 5. Monitor
+        $exitCode = Artisan::call('fdw:monitor', [
+            '--dest' => $this->destConn,
+        ]);
+        $this->assertEquals(0, $exitCode);
+
         $monitor = app(FdwMonitor::class);
         $tables = $monitor->getForeignTables($this->destConn);
         $tableNames = array_map(fn($t) => $t->foreign_table, $tables);
