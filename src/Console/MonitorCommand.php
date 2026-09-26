@@ -25,16 +25,31 @@ class MonitorCommand extends Command
 
         $servers = $monitor->getForeignServers($dest);
         $this->line("\n<comment>Foreign Servers (" . count($servers) . ")</comment>");
-        $serverRows = array_map(fn($s) => [(array)$s->server_name, (array)$s->wrapper_name, (array)$s->options], $servers);
-        $this->table(['Server Name', 'Wrapper', 'Options'], $servers);
+        $serverRows = array_map(fn($s) => [
+            $s->server_name ?? '',
+            $s->wrapper_name ?? '',
+            $s->options ?? '',
+        ], $servers);
+        $this->table(['Server Name', 'Wrapper', 'Options'], $serverRows);
 
         $mappings = $monitor->getUserMappings($dest);
         $this->line("\n<comment>User Mappings (" . count($mappings) . ")</comment>");
-        $this->table(['Local User', 'Foreign Server', 'Options'], $mappings);
+        $mappingRows = array_map(fn($m) => [
+            $m->local_user ?? '',
+            $m->server_name ?? '',
+            $m->options ?? '',
+        ], $mappings);
+        $this->table(['Local User', 'Foreign Server', 'Options'], $mappingRows);
 
         $tables = $monitor->getForeignTables($dest);
         $this->line("\n<comment>Foreign Tables (" . count($tables) . ")</comment>");
-        $this->table(['Schema', 'Table Name', 'Foreign Server', 'Options'], $tables);
+        $tableRows = array_map(fn($t) => [
+            $t->foreign_schema ?? '',
+            $t->foreign_table ?? '',
+            $t->server_name ?? '',
+            $t->options ?? '',
+        ], $tables);
+        $this->table(['Schema', 'Table Name', 'Foreign Server', 'Options'], $tableRows);
 
         return 0;
     }

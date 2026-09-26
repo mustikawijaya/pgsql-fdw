@@ -13,4 +13,23 @@ class MonitorAndRollbackCommandTest extends TestCase
         $this->assertArrayHasKey('fdw:monitor', $commands);
         $this->assertArrayHasKey('fdw:rollback', $commands);
     }
+
+    public function test_monitor_command_renders_tables_with_stdclass_objects_without_errors(): void
+    {
+        $mockMonitor = $this->createMock(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
+        $mockMonitor->method('getForeignServers')->willReturn([
+            (object)['server_name' => 'srv_1', 'wrapper_name' => 'postgres_fdw', 'options' => 'host 127.0.0.1'],
+        ]);
+        $mockMonitor->method('getUserMappings')->willReturn([
+            (object)['local_user' => 'postgres', 'server_name' => 'srv_1', 'options' => 'user remote'],
+        ]);
+        $mockMonitor->method('getForeignTables')->willReturn([
+            (object)['foreign_schema' => 'fdw_src', 'foreign_table' => 'users', 'server_name' => 'srv_1', 'options' => ''],
+        ]);
+
+        $this->app->instance(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class, $mockMonitor);
+
+        $exitCode = Artisan::call('fdw:monitor', ['--dest' => 'pgsql']);
+        $this->assertEquals(0, $exitCode);
+    }
 }
