@@ -8,9 +8,12 @@ use Throwable;
 
 class FdwMonitor
 {
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function getForeignServers(string $connection): array
     {
-        return DB::connection($connection)->select("
+        $rows = DB::connection($connection)->select("
             SELECT
                 s.srvname AS server_name,
                 w.fdwname AS wrapper_name,
@@ -19,11 +22,16 @@ class FdwMonitor
             JOIN pg_foreign_data_wrapper w ON w.oid = s.srvfdw
             ORDER BY s.srvname ASC
         ");
+
+        return array_map(fn($r) => (array) $r, $rows);
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function getUserMappings(string $connection): array
     {
-        return DB::connection($connection)->select("
+        $rows = DB::connection($connection)->select("
             SELECT
                 u.usename AS local_user,
                 s.srvname AS server_name,
@@ -33,11 +41,16 @@ class FdwMonitor
             JOIN pg_user u ON u.usesysid = m.umuser
             ORDER BY s.srvname ASC
         ");
+
+        return array_map(fn($r) => (array) $r, $rows);
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function getForeignTables(string $connection): array
     {
-        return DB::connection($connection)->select("
+        $rows = DB::connection($connection)->select("
             SELECT
                 n.nspname AS foreign_schema,
                 c.relname AS foreign_table,
@@ -49,6 +62,8 @@ class FdwMonitor
             JOIN pg_foreign_server s ON s.oid = ft.ftserver
             ORDER BY n.nspname ASC, c.relname ASC
         ");
+
+        return array_map(fn($r) => (array) $r, $rows);
     }
 
     public function dropForeignTable(string $connection, string $schema, string $table, bool $cascade = false): void
@@ -61,7 +76,7 @@ class FdwMonitor
         } catch (Throwable $e) {
             throw new FdwExecutionException(
                 "Failed dropping foreign table [{$schema}.{$table}]: " . $e->getMessage(),
-                (int)$e->getCode(),
+                (int) $e->getCode(),
                 $e
             );
         }
@@ -77,7 +92,7 @@ class FdwMonitor
         } catch (Throwable $e) {
             throw new FdwExecutionException(
                 "Failed dropping foreign server [{$server}]: " . $e->getMessage(),
-                (int)$e->getCode(),
+                (int) $e->getCode(),
                 $e
             );
         }

@@ -15,7 +15,7 @@ return [
     | Schema Isolation
     |--------------------------------------------------------------------------
     | If TRUE, foreign tables are created inside a dedicated PostgreSQL schema:
-    | {schema_prefix}{source_connection_name} (e.g., fdw_pgsql_pusat.users).
+    | {schema_prefix}{source_connection_name} (e.g., fdw_pgsql_central.users).
     | If FALSE, foreign tables are placed into 'default_schema'.
     */
     'use_schema_isolation' => true,

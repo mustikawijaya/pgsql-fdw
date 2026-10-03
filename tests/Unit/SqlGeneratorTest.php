@@ -88,4 +88,27 @@ class SqlGeneratorTest extends TestCase
 
         $this->assertStringContainsString('-- Warning: User-Defined Type (UDT) detected: user_status_enum', $sql);
     }
+
+    public function test_it_generates_single_column_table_without_trailing_comma(): void
+    {
+        $columns = [
+            [
+                'name' => 'id',
+                'type' => 'bigint',
+                'nullable' => false,
+            ],
+        ];
+
+        $sql = $this->generator->generate(
+            source: 'source_db',
+            dest: 'dest_db',
+            table: 'single_col',
+            columns: $columns,
+            targetSchema: 'fdw_source_db',
+            serverName: 'fdw_server_source_db'
+        );
+
+        $this->assertStringContainsString("    \"id\" bigint NOT NULL\n)\nSERVER", $sql);
+        $this->assertStringNotContainsString("NOT NULL,\n)", $sql);
+    }
 }

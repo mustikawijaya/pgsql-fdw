@@ -81,6 +81,7 @@ class FdwLifecycleIntegrationTest extends TestCase
             '--dest' => $this->destConn,
         ]);
         $this->assertEquals(0, $exitCode);
+        $this->assertStringContainsString('FDW environment successfully configured', Artisan::output());
 
         // 2. Make SQL
         $exitCode = Artisan::call('fdw:make-sql', [
@@ -89,12 +90,14 @@ class FdwLifecycleIntegrationTest extends TestCase
             '--table' => 'e2e_products',
         ]);
         $this->assertEquals(0, $exitCode);
+        $this->assertStringContainsString('e2e_products.sql', Artisan::output());
 
         // 3. Migrate
         $exitCode = Artisan::call('fdw:migrate', [
             '--dest' => $this->destConn,
         ]);
         $this->assertEquals(0, $exitCode);
+        $this->assertStringContainsString('All FDW migrations executed successfully', Artisan::output());
 
         // 4. Query remote data through foreign table
         $data = DB::connection($this->destConn)->table('fdw_test_source.e2e_products')->get();
@@ -108,9 +111,16 @@ class FdwLifecycleIntegrationTest extends TestCase
         ]);
         $this->assertEquals(0, $exitCode);
 
+        $output = Artisan::output();
+        $this->assertStringContainsString('PostgreSQL FDW Status Dashboard', $output);
+        $this->assertStringContainsString('Foreign Servers', $output);
+        $this->assertStringContainsString('User Mappings', $output);
+        $this->assertStringContainsString('Foreign Tables', $output);
+        $this->assertStringContainsString('e2e_products', $output);
+
         $monitor = app(FdwMonitor::class);
         $tables = $monitor->getForeignTables($this->destConn);
-        $tableNames = array_map(fn($t) => $t->foreign_table, $tables);
+        $tableNames = array_map(fn($t) => is_object($t) ? $t->foreign_table : $t['foreign_table'], $tables);
         $this->assertContains('e2e_products', $tableNames);
 
         // 6. Rollback
@@ -121,5 +131,6 @@ class FdwLifecycleIntegrationTest extends TestCase
             '--force' => true,
         ]);
         $this->assertEquals(0, $exitCode);
+        $this->assertStringContainsString('Foreign table [fdw_test_source.e2e_products] dropped', Artisan::output());
     }
 }

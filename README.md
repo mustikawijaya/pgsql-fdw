@@ -13,7 +13,7 @@ It uses Laravel's native database configuration (`config/database.php`) as the s
 ## Features
 
 - **Automated FDW Preparation (`fdw:prepare`)**: Configures PostgreSQL extension, foreign server, user mapping, permissions, and schema namespace automatically.
-- **Schema Isolation**: Prevents table collision by isolating foreign tables into dedicated PostgreSQL schemas (e.g., `fdw_pgsql_pusat.users`).
+- **Schema Isolation**: Prevents table collision by isolating foreign tables into dedicated PostgreSQL schemas (e.g., `fdw_pgsql_central.users`).
 - **Idempotent SQL Scaffolding (`fdw:make-sql`)**: Generates version-controllable raw `.sql` files organized hierarchically: `{dest}/{source}/{table}.sql`.
 - **Native Schema Import (`fdw:import-schema`)**: Bulk registers entire schemas directly without filesystem clutter.
 - **Automated Deployments (`fdw:migrate`)**: Safely executes idempotent DDL migrations on destination databases.

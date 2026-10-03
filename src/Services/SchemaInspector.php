@@ -39,7 +39,7 @@ class SchemaInspector
 
         $columns = [];
         foreach ($rows as $row) {
-            $rowData = (array)$row;
+            $rowData = (array) $row;
             $type = $this->formatPostgreSqlType($rowData);
             $isUdt = ($rowData['data_type'] === 'USER-DEFINED');
 

@@ -23,34 +23,57 @@ class MonitorCommand extends Command
 
         $this->info("=== PostgreSQL FDW Status Dashboard [{$dest}] ===");
 
-        $servers = $monitor->getForeignServers($dest);
-        $this->line("\n<comment>Foreign Servers (" . count($servers) . ")</comment>");
-        $serverRows = array_map(fn($s) => [
-            $s->server_name ?? '',
-            $s->wrapper_name ?? '',
-            $s->options ?? '',
-        ], $servers);
-        $this->table(['Server Name', 'Wrapper', 'Options'], $serverRows);
+        $this->renderSection(
+            'Foreign Servers',
+            ['Server Name', 'Wrapper', 'Options'],
+            $monitor->getForeignServers($dest),
+            ['server_name', 'wrapper_name', 'options']
+        );
 
-        $mappings = $monitor->getUserMappings($dest);
-        $this->line("\n<comment>User Mappings (" . count($mappings) . ")</comment>");
-        $mappingRows = array_map(fn($m) => [
-            $m->local_user ?? '',
-            $m->server_name ?? '',
-            $m->options ?? '',
-        ], $mappings);
-        $this->table(['Local User', 'Foreign Server', 'Options'], $mappingRows);
+        $this->renderSection(
+            'User Mappings',
+            ['Local User', 'Foreign Server', 'Options'],
+            $monitor->getUserMappings($dest),
+            ['local_user', 'server_name', 'options']
+        );
 
-        $tables = $monitor->getForeignTables($dest);
-        $this->line("\n<comment>Foreign Tables (" . count($tables) . ")</comment>");
-        $tableRows = array_map(fn($t) => [
-            $t->foreign_schema ?? '',
-            $t->foreign_table ?? '',
-            $t->server_name ?? '',
-            $t->options ?? '',
-        ], $tables);
-        $this->table(['Schema', 'Table Name', 'Foreign Server', 'Options'], $tableRows);
+        $this->renderSection(
+            'Foreign Tables',
+            ['Schema', 'Table Name', 'Foreign Server', 'Options'],
+            $monitor->getForeignTables($dest),
+            ['foreign_schema', 'foreign_table', 'server_name', 'options']
+        );
 
         return 0;
+    }
+
+    /**
+     * Render a section header and formatted table.
+     *
+     * @param string $title
+     * @param array<int, string> $headers
+     * @param array<int, object|array> $items
+     * @param array<int, string> $keys
+     */
+    private function renderSection(string $title, array $headers, array $items, array $keys): void
+    {
+        $this->line("\n<comment>{$title} (" . count($items) . ")</comment>");
+        $this->table($headers, $this->formatRows($items, $keys));
+    }
+
+    /**
+     * Normalize items (objects or arrays) into rows suitable for console table rendering.
+     *
+     * @param array<int, object|array> $items
+     * @param array<int, string> $keys
+     * @return array<int, array<int, string>>
+     */
+    private function formatRows(array $items, array $keys): array
+    {
+        return array_map(function ($item) use ($keys): array {
+            $data = (array) $item;
+
+            return array_map(fn(string $key): string => (string) ($data[$key] ?? ''), $keys);
+        }, $items);
     }
 }

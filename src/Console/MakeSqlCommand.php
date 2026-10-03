@@ -27,7 +27,7 @@ class MakeSqlCommand extends Command
         $source = $this->option('source');
         $dest = $this->option('dest');
         $table = $this->option('table');
-        $all = (bool)$this->option('all');
+        $all = (bool) $this->option('all');
 
         if (!$source || !$dest) {
             $this->error('Both --source= and --dest= options are required.');

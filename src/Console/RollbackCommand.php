@@ -24,8 +24,8 @@ class RollbackCommand extends Command
         $table = $this->option('table');
         $schema = $this->option('schema');
         $server = $this->option('server');
-        $cascade = (bool)$this->option('cascade');
-        $force = (bool)$this->option('force');
+        $cascade = (bool) $this->option('cascade');
+        $force = (bool) $this->option('force');
 
         if (!$dest) {
             $this->error('The --dest= option is required.');
