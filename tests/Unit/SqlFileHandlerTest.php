@@ -57,4 +57,17 @@ class SqlFileHandlerTest extends TestCase
         $this->assertTrue($this->handler->delete('dest_db', 'source_db', 'users'));
         $this->assertFileDoesNotExist($this->testPath . '/dest_db/source_db/users.sql');
     }
+
+    public function test_it_returns_empty_array_when_directory_does_not_exist(): void
+    {
+        $files = $this->handler->getFiles('non_existent_dir');
+        $this->assertIsArray($files);
+        $this->assertEmpty($files);
+    }
+
+    public function test_it_returns_false_when_deleting_non_existent_file(): void
+    {
+        $result = $this->handler->delete('dest_db', 'source_db', 'non_existent_table');
+        $this->assertFalse($result);
+    }
 }

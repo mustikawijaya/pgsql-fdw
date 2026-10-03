@@ -100,7 +100,7 @@ class ConnectionManager
         } catch (Throwable $e) {
             throw new FdwExecutionException(
                 "Failed executing DDL on [{$connection}]: " . $e->getMessage() . "\nSQL: {$sql}",
-                (int)$e->getCode(),
+                (int) $e->getCode(),
                 $e
             );
         }

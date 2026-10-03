@@ -26,7 +26,7 @@ class PrepareCommand extends Command
 
         $this->info("Preparing FDW on [{$dest}] for source [{$source}]...");
 
-        $manager->prepareDestination($source, $dest, (bool)$this->option('force'));
+        $manager->prepareDestination($source, $dest, (bool) $this->option('force'));
 
         $this->info("✓ FDW environment successfully configured on [{$dest}]!");
         return 0;

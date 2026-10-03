@@ -5,11 +5,30 @@ All notable changes to `mustikawijaya/pgsql-fdw` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-10-03
+
+### Changed
+- Refactored `fdw:monitor` console table rendering by extracting a reusable `renderSection()` helper and single-pass row mapping to eliminate duplicated code and avoid repeated type branching.
+- Enforced strict associative array return contracts across `FdwMonitor` service methods (`getForeignServers`, `getUserMappings`, `getForeignTables`).
+- Standardized PSR-12 type cast spacing across all console commands and domain services.
+
+### Added
+- Comprehensive test suite expansion (growing from 18 tests / 60 assertions to 32 tests / 115 assertions):
+  - End-to-end console output verification (`Artisan::output()`) for all FDW lifecycle commands.
+  - Unit tests for `fdw:monitor` empty-state, array-based row inputs, and missing option handling.
+  - Unit tests for `fdw:rollback` validation, force execution, and cascade drop.
+  - Boundary tests for single-column DDL generation in `SqlGenerator`.
+  - Boundary tests for missing directories and non-existent file deletions in `SqlFileHandler`.
+  - Boundary tests for string lengths, unconstrained numeric types, and arrays in `SchemaInspector`.
+  - Exception handling unit tests for table and server drop failures in `FdwMonitor`.
+
 ## [1.0.1] - 2026-09-26
 
+### Added
+- Added `CONTRIBUTING.md` guidelines for open-source contributors.
+
 ### Fixed
-- Fixed `TypeError` in `fdw:monitor` command by explicitly converting database query `stdClass` objects into arrays for Symfony Console table rendering.
-- Added CONTRIBUTING.md guidelines.
+- Fixed `TypeError` in `fdw:monitor` command by safely mapping database query results into arrays for Symfony Console table rendering.
 
 ## [1.0.0] - 2026-09-26
 

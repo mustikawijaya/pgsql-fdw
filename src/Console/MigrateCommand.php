@@ -17,7 +17,7 @@ class MigrateCommand extends Command
     public function handle(ConnectionManager $manager, SqlFileHandler $fileHandler): int
     {
         $dest = $this->option('dest');
-        $dryRun = (bool)$this->option('dry-run');
+        $dryRun = (bool) $this->option('dry-run');
 
         if (!$dest) {
             $this->error('The --dest= option is required.');

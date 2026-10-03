@@ -60,4 +60,50 @@ class SchemaInspectorTest extends TestCase
         ];
         $this->assertEquals('order_status_enum', $this->inspector->formatPostgreSqlType($rowUdt));
     }
+
+    public function test_it_formats_boundary_varchar_and_unconstrained_numeric(): void
+    {
+        $rowMinVarchar = [
+            'data_type' => 'character varying',
+            'udt_name' => 'varchar',
+            'character_maximum_length' => 1,
+            'numeric_precision' => null,
+            'numeric_scale' => null,
+            'datetime_precision' => null,
+        ];
+        $this->assertEquals('character varying(1)', $this->inspector->formatPostgreSqlType($rowMinVarchar));
+
+        $rowUnconstrainedNumeric = [
+            'data_type' => 'numeric',
+            'udt_name' => 'numeric',
+            'character_maximum_length' => null,
+            'numeric_precision' => null,
+            'numeric_scale' => null,
+            'datetime_precision' => null,
+        ];
+        $this->assertEquals('numeric', $this->inspector->formatPostgreSqlType($rowUnconstrainedNumeric));
+    }
+
+    public function test_it_formats_array_and_timestamp_with_timezone(): void
+    {
+        $rowArray = [
+            'data_type' => 'ARRAY',
+            'udt_name' => '_text',
+            'character_maximum_length' => null,
+            'numeric_precision' => null,
+            'numeric_scale' => null,
+            'datetime_precision' => null,
+        ];
+        $this->assertEquals('text[]', $this->inspector->formatPostgreSqlType($rowArray));
+
+        $rowTz = [
+            'data_type' => 'timestamp with time zone',
+            'udt_name' => 'timestamptz',
+            'character_maximum_length' => null,
+            'numeric_precision' => null,
+            'numeric_scale' => null,
+            'datetime_precision' => 3,
+        ];
+        $this->assertEquals('timestamp(3) with time zone', $this->inspector->formatPostgreSqlType($rowTz));
+    }
 }
