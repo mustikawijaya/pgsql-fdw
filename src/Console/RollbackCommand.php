@@ -37,6 +37,28 @@ class RollbackCommand extends Command
             return 1;
         }
 
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+
+        if (!preg_match($identifierRegex, $dest)) {
+            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if ($table !== null && !preg_match($identifierRegex, $table)) {
+            $this->error("Invalid identifier provided for --table: [{$table}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if ($schema !== null && !preg_match($identifierRegex, $schema)) {
+            $this->error("Invalid identifier provided for --schema: [{$schema}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if ($server !== null && !preg_match($identifierRegex, $server)) {
+            $this->error("Invalid identifier provided for --server: [{$server}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
         if (!$force && !$this->confirm('Are you sure you want to proceed with teardown?')) {
             $this->info('Rollback aborted.');
             return 0;

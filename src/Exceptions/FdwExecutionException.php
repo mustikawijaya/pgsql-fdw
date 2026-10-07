@@ -9,6 +9,8 @@ class FdwExecutionException extends RuntimeException
 {
     public function __construct(string $message, int $code = 0, ?Throwable $previous = null)
     {
+        $message = (string) preg_replace("/password\s+'(?:[^']|'')*'/i", "password '********'", $message);
+
         if (str_contains($message, '42501') || str_contains(strtolower($message), 'permission denied')) {
             $message .= "\n[Hint: Creating FDW servers/extensions may require DBA or 'rds_superuser' privileges.]";
         }

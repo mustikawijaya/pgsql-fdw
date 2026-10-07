@@ -141,4 +141,85 @@ class MonitorAndRollbackCommandTest extends TestCase
         $this->assertEquals(0, $exitCode);
         $this->assertStringContainsString('Foreign server [srv_1] dropped.', Artisan::output());
     }
+
+    public function test_rollback_command_rejects_malicious_server_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:rollback', [
+            '--dest' => 'pgsql',
+            '--server' => 'srv_1; DROP SCHEMA public CASCADE; --',
+            '--force' => true,
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_rollback_command_rejects_malicious_table_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:rollback', [
+            '--dest' => 'pgsql',
+            '--table' => 'users; DROP TABLE sensitive; --',
+            '--schema' => 'fdw_src',
+            '--force' => true,
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_rollback_command_rejects_malicious_schema_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:rollback', [
+            '--dest' => 'pgsql',
+            '--table' => 'users',
+            '--schema' => 'public; DROP TABLE evil; --',
+            '--force' => true,
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_prepare_command_rejects_malicious_source_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:prepare', [
+            '--source' => 'src; DROP DATABASE test; --',
+            '--dest' => 'pgsql_dest',
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_make_sql_command_rejects_malicious_table_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:make-sql', [
+            '--source' => 'pgsql_src',
+            '--dest' => 'pgsql_dest',
+            '--table' => 'tbl; DROP TABLE secret; --',
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_migrate_command_rejects_malicious_dest_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:migrate', [
+            '--dest' => 'dest; DROP TABLE secret; --',
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
+
+    public function test_monitor_command_rejects_malicious_dest_identifier(): void
+    {
+        $exitCode = Artisan::call('fdw:monitor', [
+            '--dest' => 'dest; DROP TABLE secret; --',
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
 }

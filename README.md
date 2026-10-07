@@ -132,6 +132,25 @@ Run the test suite using PHPUnit:
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, development setup, and pull request guidelines.
 
+## Security Best Practices
+
+When configuring remote PostgreSQL connections for Foreign Data Wrappers, follow the **Principle of Least Privilege**:
+
+1. **Dedicated Read-Only Role**: Avoid using superuser (e.g. `postgres`) credentials for FDW mappings. Create a dedicated database user with read-only access to only the necessary schemas and tables:
+   ```sql
+   -- On remote PostgreSQL server:
+   CREATE ROLE fdw_reader WITH LOGIN PASSWORD 'strong_password';
+   GRANT USAGE ON SCHEMA public TO fdw_reader;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO fdw_reader;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO fdw_reader;
+   ```
+2. **Network Isolation**: Restrict remote PostgreSQL port access (`5432`) to the IP address or VPC subnet of your application servers via `pg_hba.conf` and firewall rules.
+3. **Environment Secrets**: Store connection credentials exclusively in `.env` and never commit passwords to version control.
+
+## Security Vulnerabilities
+
+Please review [our security policy](SECURITY.md) on how to report security vulnerabilities responsibly.
+
 ---
 
 ## License

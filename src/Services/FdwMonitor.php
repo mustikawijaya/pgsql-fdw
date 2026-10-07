@@ -68,8 +68,13 @@ class FdwMonitor
 
     public function dropForeignTable(string $connection, string $schema, string $table, bool $cascade = false): void
     {
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+        if (!preg_match($identifierRegex, $schema) || !preg_match($identifierRegex, $table)) {
+            throw new \InvalidArgumentException("Invalid identifier provided for schema or table. Only alphanumeric characters, dashes, and underscores are allowed.");
+        }
+
         $cascadeSql = $cascade ? ' CASCADE' : '';
-        $sql = "DROP FOREIGN TABLE IF EXISTS {$schema}.{$table}{$cascadeSql};";
+        $sql = "DROP FOREIGN TABLE IF EXISTS \"{$schema}\".\"{$table}\"{$cascadeSql};";
 
         try {
             DB::connection($connection)->unprepared($sql);
@@ -84,8 +89,13 @@ class FdwMonitor
 
     public function dropForeignServer(string $connection, string $server, bool $cascade = false): void
     {
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+        if (!preg_match($identifierRegex, $server)) {
+            throw new \InvalidArgumentException("Invalid identifier provided for server. Only alphanumeric characters, dashes, and underscores are allowed.");
+        }
+
         $cascadeSql = $cascade ? ' CASCADE' : '';
-        $sql = "DROP SERVER IF EXISTS {$server}{$cascadeSql};";
+        $sql = "DROP SERVER IF EXISTS \"{$server}\"{$cascadeSql};";
 
         try {
             DB::connection($connection)->unprepared($sql);

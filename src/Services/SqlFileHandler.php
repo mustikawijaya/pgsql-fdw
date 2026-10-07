@@ -13,9 +13,12 @@ class SqlFileHandler
 
     public function getDirectoryPath(string $dest, ?string $source = null): string
     {
+        $this->validatePathComponent($dest);
+
         $path = $this->getBasePath() . '/' . $dest;
 
         if ($source !== null) {
+            $this->validatePathComponent($source);
             $path .= '/' . $source;
         }
 
@@ -24,6 +27,7 @@ class SqlFileHandler
 
     public function save(string $dest, string $source, string $table, string $sql): string
     {
+        $this->validatePathComponent($table);
         $dir = $this->getDirectoryPath($dest, $source);
 
         if (!File::exists($dir)) {
@@ -60,6 +64,7 @@ class SqlFileHandler
 
     public function delete(string $dest, string $source, string $table): bool
     {
+        $this->validatePathComponent($table);
         $filePath = $this->getDirectoryPath($dest, $source) . '/' . $table . '.sql';
 
         if (File::exists($filePath)) {
@@ -67,5 +72,12 @@ class SqlFileHandler
         }
 
         return false;
+    }
+
+    private function validatePathComponent(string $name): void
+    {
+        if ($name !== basename($name) || !preg_match('/^[a-zA-Z0-9_\-]+$/', $name)) {
+            throw new \InvalidArgumentException("Invalid file or directory component: [{$name}]. Path traversal or invalid characters detected.");
+        }
     }
 }

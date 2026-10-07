@@ -55,14 +55,14 @@ class SqlGeneratorTest extends TestCase
             remoteSchema: 'public'
         );
 
-        $this->assertStringContainsString('DROP FOREIGN TABLE IF EXISTS fdw_source_db.products;', $sql);
-        $this->assertStringContainsString('CREATE FOREIGN TABLE fdw_source_db.products (', $sql);
+        $this->assertStringContainsString('DROP FOREIGN TABLE IF EXISTS "fdw_source_db"."products";', $sql);
+        $this->assertStringContainsString('CREATE FOREIGN TABLE "fdw_source_db"."products" (', $sql);
         $this->assertStringContainsString('"id" bigint NOT NULL,', $sql);
         $this->assertStringContainsString('"title" character varying(255) NOT NULL,', $sql);
         $this->assertStringContainsString('"price" numeric(15,2),', $sql);
         $this->assertStringContainsString('"order" integer,', $sql);
         $this->assertStringContainsString('"created_at" timestamp(0) without time zone', $sql);
-        $this->assertStringContainsString("SERVER fdw_server_source_db", $sql);
+        $this->assertStringContainsString('SERVER "fdw_server_source_db"', $sql);
         $this->assertStringContainsString("OPTIONS (schema_name 'public', table_name 'products');", $sql);
     }
 
@@ -110,5 +110,51 @@ class SqlGeneratorTest extends TestCase
 
         $this->assertStringContainsString("    \"id\" bigint NOT NULL\n)\nSERVER", $sql);
         $this->assertStringNotContainsString("NOT NULL,\n)", $sql);
+    }
+
+    public function test_it_quotes_target_schema_and_table_identifiers(): void
+    {
+        $sql = $this->generator->generate(
+            source: 'src_db',
+            dest: 'dst_db',
+            table: 'UserProfiles',
+            columns: [['name' => 'id', 'type' => 'bigint', 'nullable' => false]],
+            targetSchema: 'fdw_src',
+            serverName: 'fdw_server_src'
+        );
+
+        $this->assertStringContainsString('DROP FOREIGN TABLE IF EXISTS "fdw_src"."UserProfiles";', $sql);
+        $this->assertStringContainsString('CREATE FOREIGN TABLE "fdw_src"."UserProfiles" (', $sql);
+        $this->assertStringContainsString('SERVER "fdw_server_src"', $sql);
+    }
+
+    public function test_it_rejects_malicious_table_identifier(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $this->generator->generate(
+            source: 'src_db',
+            dest: 'dst_db',
+            table: 'users; DROP TABLE sensitive; --',
+            columns: [['name' => 'id', 'type' => 'bigint']],
+            targetSchema: 'fdw_src',
+            serverName: 'fdw_server_src'
+        );
+    }
+
+    public function test_it_rejects_malicious_schema_identifier(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $this->generator->generate(
+            source: 'src_db',
+            dest: 'dst_db',
+            table: 'users',
+            columns: [['name' => 'id', 'type' => 'bigint']],
+            targetSchema: 'fdw_src; DROP SCHEMA public CASCADE; --',
+            serverName: 'fdw_server_src'
+        );
     }
 }

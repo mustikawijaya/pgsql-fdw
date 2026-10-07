@@ -24,6 +24,18 @@ class PrepareCommand extends Command
             return 1;
         }
 
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+
+        if (!preg_match($identifierRegex, $source)) {
+            $this->error("Invalid identifier provided for --source: [{$source}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if (!preg_match($identifierRegex, $dest)) {
+            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
         $this->info("Preparing FDW on [{$dest}] for source [{$source}]...");
 
         $manager->prepareDestination($source, $dest, (bool) $this->option('force'));

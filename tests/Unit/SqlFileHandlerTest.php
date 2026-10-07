@@ -70,4 +70,28 @@ class SqlFileHandlerTest extends TestCase
         $result = $this->handler->delete('dest_db', 'source_db', 'non_existent_table');
         $this->assertFalse($result);
     }
+
+    public function test_it_rejects_path_traversal_in_table_name_on_save(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid file or directory component');
+
+        $this->handler->save('dest_db', 'source_db', '../../evil', 'SELECT 1;');
+    }
+
+    public function test_it_rejects_path_traversal_in_table_name_on_delete(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid file or directory component');
+
+        $this->handler->delete('dest_db', 'source_db', '../../evil');
+    }
+
+    public function test_it_rejects_path_traversal_in_connection_names(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid file or directory component');
+
+        $this->handler->save('../evil_dest', 'source_db', 'users', 'SELECT 1;');
+    }
 }

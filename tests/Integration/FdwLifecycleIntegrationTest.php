@@ -42,12 +42,13 @@ class FdwLifecycleIntegrationTest extends TestCase
         parent::setUp();
 
         // 1. Cleanup any leftover objects from previous runs
-        DB::connection($this->destConn)->unprepared("
+        DB::connection($this->destConn)->unprepared('
             DROP FOREIGN TABLE IF EXISTS fdw_test_source.e2e_products;
+            DROP FOREIGN TABLE IF EXISTS fdw_test_source."OrderItems";
             DROP SCHEMA IF EXISTS fdw_test_source CASCADE;
             DROP SERVER IF EXISTS fdw_server_test_source CASCADE;
             DROP SCHEMA IF EXISTS test_src_schema CASCADE;
-        ");
+        ');
 
         // 2. Create source schema & physical table with data
         DB::connection($this->sourceConn)->unprepared("
@@ -63,12 +64,13 @@ class FdwLifecycleIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        DB::connection($this->destConn)->unprepared("
+        DB::connection($this->destConn)->unprepared('
             DROP FOREIGN TABLE IF EXISTS fdw_test_source.e2e_products;
+            DROP FOREIGN TABLE IF EXISTS fdw_test_source."OrderItems";
             DROP SCHEMA IF EXISTS fdw_test_source CASCADE;
             DROP SERVER IF EXISTS fdw_server_test_source CASCADE;
             DROP SCHEMA IF EXISTS test_src_schema CASCADE;
-        ");
+        ');
 
         parent::tearDown();
     }
@@ -132,5 +134,52 @@ class FdwLifecycleIntegrationTest extends TestCase
         ]);
         $this->assertEquals(0, $exitCode);
         $this->assertStringContainsString('Foreign table [fdw_test_source.e2e_products] dropped', Artisan::output());
+    }
+
+    public function test_fdw_handles_credentials_with_quotes_and_special_table_names(): void
+    {
+        // 1. Create a physical table with camelCase / special identifier
+        DB::connection($this->sourceConn)->unprepared('
+            CREATE TABLE IF NOT EXISTS test_src_schema."OrderItems" (
+                id serial PRIMARY KEY,
+                sku varchar(50) NOT NULL
+            );
+            INSERT INTO test_src_schema."OrderItems" (sku) VALUES (\'SKU-100\');
+        ');
+
+        // 2. Prepare destination
+        $exitCode = Artisan::call('fdw:prepare', [
+            '--source' => $this->sourceConn,
+            '--dest' => $this->destConn,
+        ]);
+        $this->assertEquals(0, $exitCode);
+
+        // 3. Make SQL for CamelCase table
+        $exitCode = Artisan::call('fdw:make-sql', [
+            '--source' => $this->sourceConn,
+            '--dest' => $this->destConn,
+            '--table' => 'OrderItems',
+        ]);
+        $this->assertEquals(0, $exitCode);
+
+        // 4. Migrate
+        $exitCode = Artisan::call('fdw:migrate', [
+            '--dest' => $this->destConn,
+        ]);
+        $this->assertEquals(0, $exitCode);
+
+        // 5. Query remote data through foreign table
+        $data = DB::connection($this->destConn)->table('fdw_test_source.OrderItems')->get();
+        $this->assertNotEmpty($data);
+        $this->assertEquals('SKU-100', $data[0]->sku);
+
+        // 6. Rollback
+        $exitCode = Artisan::call('fdw:rollback', [
+            '--dest' => $this->destConn,
+            '--table' => 'OrderItems',
+            '--schema' => 'fdw_test_source',
+            '--force' => true,
+        ]);
+        $this->assertEquals(0, $exitCode);
     }
 }

@@ -3,6 +3,7 @@
 namespace MustikaWijaya\PgsqlFdw\Tests\Unit;
 
 use MustikaWijaya\PgsqlFdw\Exceptions\ConnectionException;
+use MustikaWijaya\PgsqlFdw\Exceptions\FdwExecutionException;
 use MustikaWijaya\PgsqlFdw\Services\ConnectionManager;
 use MustikaWijaya\PgsqlFdw\Tests\TestCase;
 
@@ -70,11 +71,75 @@ class ConnectionManagerTest extends TestCase
 
         $this->assertCount(5, $queries);
         $this->assertStringContainsString('CREATE EXTENSION IF NOT EXISTS postgres_fdw;', $queries[0]);
-        $this->assertStringContainsString('CREATE SERVER IF NOT EXISTS fdw_server_pgsql_source', $queries[1]);
+        $this->assertStringContainsString('CREATE SERVER IF NOT EXISTS "fdw_server_pgsql_source"', $queries[1]);
         $this->assertStringContainsString("host '127.0.0.1'", $queries[1]);
         $this->assertStringContainsString("fetch_size '2000'", $queries[1]);
         $this->assertStringContainsString('CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER', $queries[2]);
-        $this->assertStringContainsString('GRANT USAGE ON FOREIGN SERVER fdw_server_pgsql_source TO CURRENT_USER;', $queries[3]);
-        $this->assertStringContainsString('CREATE SCHEMA IF NOT EXISTS fdw_pgsql_source;', $queries[4]);
+        $this->assertStringContainsString('GRANT USAGE ON FOREIGN SERVER "fdw_server_pgsql_source" TO CURRENT_USER;', $queries[3]);
+        $this->assertStringContainsString('CREATE SCHEMA IF NOT EXISTS "fdw_pgsql_source";', $queries[4]);
+    }
+
+    public function test_execute_ddl_masks_password_in_thrown_exception(): void
+    {
+        $sql = "CREATE USER MAPPING FOR CURRENT_USER SERVER srv OPTIONS (user 'admin', password 'UnmaskedPassword');";
+        try {
+            $this->manager->executeDdl('pgsql_source', $sql);
+            $this->fail('Expected exception was not thrown');
+        } catch (FdwExecutionException $e) {
+            $this->assertStringNotContainsString('UnmaskedPassword', $e->getMessage());
+            $this->assertStringContainsString("password '********'", $e->getMessage());
+        }
+    }
+
+    public function test_execute_ddl_masks_password_with_escaped_quotes_in_thrown_exception(): void
+    {
+        $sql = "CREATE USER MAPPING FOR CURRENT_USER SERVER srv OPTIONS (user 'admin', password 'p''ass''''word!');";
+        try {
+            $this->manager->executeDdl('pgsql_source', $sql);
+            $this->fail('Expected exception was not thrown');
+        } catch (FdwExecutionException $e) {
+            $this->assertStringNotContainsString("p''ass''''word!", $e->getMessage());
+            $this->assertStringNotContainsString("word!", $e->getMessage());
+            $this->assertStringContainsString("password '********'", $e->getMessage());
+        }
+    }
+
+    public function test_it_escapes_single_quotes_in_password_and_credentials(): void
+    {
+        config([
+            'database.connections.pgsql_quote_test' => [
+                'driver' => 'pgsql',
+                'host' => '127.0.0.1',
+                'port' => '5432',
+                'database' => "db'test",
+                'username' => "user'admin",
+                'password' => "p'ass''word!",
+                'schema' => 'public',
+            ],
+        ]);
+
+        $queries = $this->manager->getPreparationQueries('pgsql_quote_test');
+        $userMappingQuery = $queries[2];
+
+        $this->assertStringContainsString("password 'p''ass''''word!'", $userMappingQuery);
+        $this->assertStringContainsString("user 'user''admin'", $userMappingQuery);
+    }
+
+    public function test_it_quotes_server_and_schema_identifiers_in_preparation_ddl(): void
+    {
+        $queries = $this->manager->getPreparationQueries('pgsql_source');
+
+        $this->assertStringContainsString('CREATE SERVER IF NOT EXISTS "fdw_server_pgsql_source"', $queries[1]);
+        $this->assertStringContainsString('SERVER "fdw_server_pgsql_source"', $queries[2]);
+        $this->assertStringContainsString('ON FOREIGN SERVER "fdw_server_pgsql_source"', $queries[3]);
+        $this->assertStringContainsString('CREATE SCHEMA IF NOT EXISTS "fdw_pgsql_source"', $queries[4]);
+    }
+
+    public function test_it_rejects_malicious_connection_identifiers(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $this->manager->getPreparationQueries('srv; DROP SCHEMA public CASCADE; --');
     }
 }

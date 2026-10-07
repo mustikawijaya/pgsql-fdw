@@ -21,6 +21,13 @@ class MonitorCommand extends Command
             return 1;
         }
 
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+
+        if (!preg_match($identifierRegex, $dest)) {
+            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
         $this->info("=== PostgreSQL FDW Status Dashboard [{$dest}] ===");
 
         $this->renderSection(

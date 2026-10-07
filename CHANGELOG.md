@@ -5,6 +5,16 @@ All notable changes to `mustikawijaya/pgsql-fdw` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-10-05
+
+### Security Hardening & Vulnerability Remediation
+- **SEC-01 (Password Redaction in Exception Messages)**: Implemented defense-in-depth regex redaction in `FdwExecutionException` and `ConnectionManager::executeDdl` to prevent database passwords from leaking into application logs, error trackers, or console outputs.
+- **SEC-02 (SQL Literal Credential Escaping)**: Added PostgreSQL single-quote literal doubling (`str_replace("'", "''", ...)`) in `ConnectionManager::getPreparationQueries` and `SqlGenerator::generate` to ensure special characters and quotes in passwords, usernames, and database names do not break DDL syntax or allow injection.
+- **SEC-03 (CLI SQL Identifier Validation)**: Added strict regex validation (`/^[a-zA-Z0-9_\-]+$/`) for all table, schema, and server identifiers across `RollbackCommand`, `ImportSchemaCommand`, and `FdwMonitor`.
+- **SEC-04 (Path Traversal Protection)**: Added path component sanitization (`basename` equality and regex validation) in `SqlFileHandler` to prevent directory traversal attacks on save, delete, or directory listing.
+- **SEC-05 (DDL Identifier Double-Quoting)**: Wrapped all table, schema, and server names in double quotes (`"{$name}"`) across `SqlGenerator`, `ConnectionManager`, `ImportSchemaCommand`, and `FdwMonitor` to safely preserve CamelCase table names and reserved PostgreSQL keywords.
+- **SEC-06 (Least Privilege Security Documentation)**: Added `Security Best Practices` guidelines in `README.md` recommending dedicated read-only database roles for remote FDW connections.
+
 ## [1.0.2] - 2026-10-03
 
 ### Changed
@@ -21,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Boundary tests for missing directories and non-existent file deletions in `SqlFileHandler`.
   - Boundary tests for string lengths, unconstrained numeric types, and arrays in `SchemaInspector`.
   - Exception handling unit tests for table and server drop failures in `FdwMonitor`.
+- Added `SECURITY.md` defining the repository security policy and private vulnerability reporting via GitHub Security Advisories.
 
 ## [1.0.1] - 2026-09-26
 

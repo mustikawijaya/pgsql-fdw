@@ -39,6 +39,23 @@ class MakeSqlCommand extends Command
             return 1;
         }
 
+        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+
+        if (!preg_match($identifierRegex, $source)) {
+            $this->error("Invalid identifier provided for --source: [{$source}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if (!preg_match($identifierRegex, $dest)) {
+            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
+        if ($table !== null && !preg_match($identifierRegex, $table)) {
+            $this->error("Invalid identifier provided for --table: [{$table}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+            return 1;
+        }
+
         $sourceConfig = $manager->getConnectionConfig($source);
         $remoteSchema = $sourceConfig['schema'] ?? 'public';
         $targetSchema = $manager->getTargetSchema($source);

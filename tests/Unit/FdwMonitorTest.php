@@ -32,4 +32,24 @@ class FdwMonitorTest extends TestCase
 
         $monitor->dropForeignServer('non_existent_conn', 'srv_test');
     }
+
+    public function test_it_throws_invalid_argument_exception_on_malicious_table_identifier(): void
+    {
+        $monitor = new FdwMonitor();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $monitor->dropForeignTable('non_existent_conn', 'public', 'users; DROP TABLE evil; --');
+    }
+
+    public function test_it_throws_invalid_argument_exception_on_malicious_server_identifier(): void
+    {
+        $monitor = new FdwMonitor();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $monitor->dropForeignServer('non_existent_conn', 'srv; DROP SERVER evil; --');
+    }
 }
