@@ -76,46 +76,170 @@ return [
 
 ## Usage & Artisan Commands
 
-### 1. Prepare Destination Database
+### 1. `fdw:prepare`
+Sets up the FDW environment on the destination database, including the `postgres_fdw` extension, Foreign Server, User Mapping, `GRANT USAGE` permissions, and isolation schema.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--source=` | **Required** | `-` | Source connection name defined in `config/database.php`. |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+| `--force` | Optional | `false` | Force recreation or ignore existing FDW servers/schemas. |
+
+#### Usage Examples:
 ```bash
+# Standard preparation
 php artisan fdw:prepare --source=pgsql_central --dest=pgsql_local
+
+# Force preparation / ignore existing objects
+php artisan fdw:prepare --source=pgsql_central --dest=pgsql_local --force
 ```
 
-### 2. Scaffold DDL SQL Files
+---
+
+### 2. `fdw:make-sql`
+Generates idempotent raw `.sql` DDL files (`DROP FOREIGN TABLE IF EXISTS` + `CREATE FOREIGN TABLE`) preserving exact PostgreSQL data types (numeric precision, timestamps, arrays, and UDTs). Files are organized hierarchically at `{sql_output_path}/{dest}/{source}/{table}.sql`.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--source=` | **Required** | `-` | Source connection name defined in `config/database.php`. |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+| `--table=` | Optional* | `-` | Specific remote table to scaffold (*Required if `--all` is not passed). |
+| `--all` | Optional* | `false` | Scaffold all tables in the source schema (*Required if `--table=` is not passed). |
+
+#### Usage Examples:
 ```bash
-# Specific table
+# Scaffold a single table
 php artisan fdw:make-sql --source=pgsql_central --dest=pgsql_local --table=users
 
-# All tables in source schema
+# Scaffold all tables in the source schema simultaneously
 php artisan fdw:make-sql --source=pgsql_central --dest=pgsql_local --all
 ```
 
-### 3. Native Schema Import (Alternative fast path)
+---
+
+### 3. `fdw:import-schema`
+Bulk imports an entire foreign schema natively using PostgreSQL's `IMPORT FOREIGN SCHEMA`. This provides a fast-path alternative without creating `.sql` files on disk.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--source=` | **Required** | `-` | Source connection name defined in `config/database.php`. |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+| `--remote-schema=` | Optional | `public` (or source config) | Remote schema to import from. |
+| `--into-schema=` | Optional | Isolated schema (`fdw_{source}`) | Local destination schema where foreign tables are registered. |
+
+#### Usage Examples:
 ```bash
-php artisan fdw:import-schema --source=pgsql_central --dest=pgsql_local --into-schema=fdw_pgsql_central
+# Default import into the configured isolation schema (e.g. fdw_pgsql_central)
+php artisan fdw:import-schema --source=pgsql_central --dest=pgsql_local
+
+# Import from a non-public remote schema (e.g. analytics)
+php artisan fdw:import-schema --source=pgsql_central --dest=pgsql_local --remote-schema=analytics
+
+# Import into a custom local schema namespace
+php artisan fdw:import-schema --source=pgsql_central --dest=pgsql_local --into-schema=custom_fdw_schema
+
+# Custom remote schema and target schema combined
+php artisan fdw:import-schema --source=pgsql_central --dest=pgsql_local --remote-schema=inventory --into-schema=fdw_inventory
 ```
 
-### 4. Deploy Migrations
+---
+
+### 4. `fdw:migrate`
+Executes generated DDL `.sql` migration files on the destination database sequentially and safely.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+| `--dry-run` | Optional | `false` | Previews the list of `.sql` files that would be executed without running them. |
+
+#### Usage Examples:
 ```bash
-# Preview files first
+# Preview migrations without executing (--dry-run)
 php artisan fdw:migrate --dest=pgsql_local --dry-run
 
-# Execute migrations
+# Execute all pending FDW migrations
 php artisan fdw:migrate --dest=pgsql_local
 ```
 
-### 5. Monitor FDW Health & Tables
+---
+
+### 5. `fdw:monitor`
+Displays an interactive status dashboard in the console showing Foreign Servers, User Mappings, and Foreign Tables registered on the destination database.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+
+#### Usage Examples:
 ```bash
+# Inspect FDW dashboard on destination database
 php artisan fdw:monitor --dest=pgsql_local
 ```
 
-### 6. Rollback / Teardown
+---
+
+### 6. `fdw:rollback`
+Safely drops foreign tables or foreign servers from the destination database.
+
+> [!NOTE]
+> Physical tables and data on the remote source database are **100% untouched and safe**. Only the proxy pointers on the destination database are dropped.
+
+#### Options & Parameters:
+| Option | Status | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
+| `--table=` | Optional* | `-` | Name of the foreign table to drop (*Required if `--server=` is not passed). |
+| `--schema=` | Optional | `public` (or default schema) | Schema where the foreign table resides. |
+| `--server=` | Optional* | `-` | Foreign server to drop completely (*Required if `--table=` is not passed). |
+| `--cascade` | Optional | `false` | Drops the object and any dependent objects (e.g. local views or foreign tables). |
+| `--force` | Optional | `false` | Bypasses interactive confirmation prompt (ideal for CI/CD automation). |
+
+#### Usage Examples:
 ```bash
-# Drop a specific foreign table
+# Drop a single table with interactive confirmation
+php artisan fdw:rollback --dest=pgsql_local --table=users --schema=fdw_pgsql_central
+
+# Drop a table non-interactively in automation/scripts (--force)
 php artisan fdw:rollback --dest=pgsql_local --table=users --schema=fdw_pgsql_central --force
+
+# Drop a table along with dependent local views (--cascade)
+php artisan fdw:rollback --dest=pgsql_local --table=orders --schema=fdw_pgsql_central --cascade --force
 
 # Teardown an entire foreign server
 php artisan fdw:rollback --dest=pgsql_local --server=fdw_server_pgsql_central --force
+
+# Teardown a foreign server along with ALL its foreign tables and user mappings (--cascade)
+php artisan fdw:rollback --dest=pgsql_local --server=fdw_server_pgsql_central --cascade --force
+```
+
+---
+
+### 7. Querying Remote Foreign Tables in Laravel
+Once foreign tables are migrated, you can query them directly using Laravel's Query Builder or Eloquent models:
+
+```php
+use Illuminate\Support\Facades\DB;
+
+// Query via DB Facade
+$users = DB::table('fdw_pgsql_central.users')->where('status', 'active')->get();
+
+// Query via Eloquent Model
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class CentralUser extends Model
+{
+    protected $table = 'fdw_pgsql_central.users';
+    public $timestamps = false;
+}
+
+$recentUsers = CentralUser::latest()->take(10)->get();
 ```
 
 ---
