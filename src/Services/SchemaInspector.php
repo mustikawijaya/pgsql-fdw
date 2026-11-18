@@ -96,7 +96,7 @@ class SchemaInspector
         }
 
         if ($dataType === 'ARRAY') {
-            return ltrim($udtName, '_') . '[]';
+            return (string) preg_replace('/^_/', '', $udtName) . '[]';
         }
 
         return $dataType;

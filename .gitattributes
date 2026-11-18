@@ -15,3 +15,5 @@ phpunit.xml.dist export-ignore
 tests export-ignore
 docs export-ignore
 CONTRIBUTING.md export-ignore
+.github export-ignore
+.superpowers export-ignore

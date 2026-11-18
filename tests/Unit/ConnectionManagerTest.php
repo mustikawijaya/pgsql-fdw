@@ -2,10 +2,14 @@
 
 namespace MustikaWijaya\PgsqlFdw\Tests\Unit;
 
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use MustikaWijaya\PgsqlFdw\Exceptions\ConnectionException;
 use MustikaWijaya\PgsqlFdw\Exceptions\FdwExecutionException;
 use MustikaWijaya\PgsqlFdw\Services\ConnectionManager;
 use MustikaWijaya\PgsqlFdw\Tests\TestCase;
+use Psr\Log\LoggerInterface;
 
 class ConnectionManagerTest extends TestCase
 {
@@ -141,5 +145,92 @@ class ConnectionManagerTest extends TestCase
         $this->expectExceptionMessage('Invalid identifier');
 
         $this->manager->getPreparationQueries('srv; DROP SCHEMA public CASCADE; --');
+    }
+
+    public function test_it_rejects_malicious_server_option_keys_in_preparation_queries(): void
+    {
+        config([
+            'pgsql-fdw.options.server' => [
+                "fetch_size '10'); DROP TABLE x; --" => '100',
+            ],
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid FDW option key');
+
+        $this->manager->getPreparationQueries('pgsql_source');
+    }
+
+    public function test_execute_ddl_logs_masked_error_to_configured_channel(): void
+    {
+        config(['pgsql-fdw.log_channel' => 'fdw_audit']);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('error')
+            ->with($this->callback(fn (string $msg): bool => str_contains($msg, '[pgsql_source]')
+                && str_contains($msg, "password '********'")
+                && !str_contains($msg, 'SecretPass!')));
+
+        Log::shouldReceive('channel')->with('fdw_audit')->once()->andReturn($logger);
+
+        try {
+            $this->manager->executeDdl('pgsql_source', "CREATE USER MAPPING FOR CURRENT_USER SERVER srv OPTIONS (user 'admin', password 'SecretPass!');");
+            $this->fail('Expected FdwExecutionException was not thrown');
+        } catch (FdwExecutionException $e) {
+            $this->assertStringContainsString("password '********'", $e->getMessage());
+        }
+    }
+
+    public function test_it_builds_recreation_ddl_queries_when_force_is_true(): void
+    {
+        $queries = $this->manager->getPreparationQueries('pgsql_source', true);
+
+        $this->assertCount(6, $queries);
+        $this->assertEquals('CREATE EXTENSION IF NOT EXISTS postgres_fdw;', $queries[0]);
+        $this->assertEquals('DROP SERVER IF EXISTS "fdw_server_pgsql_source" CASCADE;', $queries[1]);
+        $this->assertStringContainsString('CREATE SERVER "fdw_server_pgsql_source"', $queries[2]);
+        $this->assertStringNotContainsString('IF NOT EXISTS', $queries[2]);
+        $this->assertStringContainsString('CREATE USER MAPPING FOR CURRENT_USER SERVER "fdw_server_pgsql_source"', $queries[3]);
+        $this->assertStringNotContainsString('IF NOT EXISTS', $queries[3]);
+        $this->assertStringContainsString('GRANT USAGE ON FOREIGN SERVER "fdw_server_pgsql_source" TO CURRENT_USER;', $queries[4]);
+        $this->assertStringContainsString('CREATE SCHEMA IF NOT EXISTS "fdw_pgsql_source";', $queries[5]);
+    }
+
+    public function test_execute_ddl_still_throws_masked_fdw_execution_exception_when_log_channel_is_invalid(): void
+    {
+        config(['pgsql-fdw.log_channel' => 'broken_channel']);
+        Log::shouldReceive('channel')
+            ->with('broken_channel')
+            ->once()
+            ->andThrow(new \InvalidArgumentException('Log [broken_channel] is not defined.'));
+
+        try {
+            $this->manager->executeDdl('pgsql_source', "CREATE USER MAPPING FOR CURRENT_USER SERVER srv OPTIONS (user 'admin', password 'Super''Secret!');");
+            $this->fail('Expected FdwExecutionException was not thrown');
+        } catch (FdwExecutionException $e) {
+            $this->assertStringNotContainsString('Super', $e->getMessage());
+            $this->assertStringNotContainsString('Secret!', $e->getMessage());
+            $this->assertStringContainsString("password '********'", $e->getMessage());
+        }
+    }
+
+    public function test_execute_ddl_does_not_invoke_error_logger_when_info_logger_throws_after_ddl_succeeds(): void
+    {
+        config(['pgsql-fdw.log_channel' => 'broken_channel']);
+
+        $conn = $this->createMock(ConnectionInterface::class);
+        $conn->expects($this->once())->method('unprepared')->with('SELECT 1;')->willReturn(true);
+        DB::shouldReceive('connection')->with('pgsql_source')->once()->andReturn($conn);
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('info')
+            ->willThrowException(new \RuntimeException('Disk full'));
+        $logger->expects($this->never())->method('error');
+
+        Log::shouldReceive('channel')->with('broken_channel')->once()->andReturn($logger);
+
+        $this->manager->executeDdl('pgsql_source', 'SELECT 1;');
     }
 }

@@ -2,6 +2,8 @@
 
 namespace MustikaWijaya\PgsqlFdw\Services;
 
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
+
 class SqlGenerator
 {
     public function generate(
@@ -14,8 +16,6 @@ class SqlGenerator
         string $remoteSchema = 'public',
         array $options = []
     ): string {
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
-
         foreach ([
             'source' => $source,
             'dest' => $dest,
@@ -24,9 +24,7 @@ class SqlGenerator
             'serverName' => $serverName,
             'remoteSchema' => $remoteSchema,
         ] as $fieldName => $val) {
-            if (!preg_match($identifierRegex, $val)) {
-                throw new \InvalidArgumentException("Invalid identifier provided for {$fieldName}: [{$val}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            }
+            IdentifierValidator::validate($val, $fieldName);
         }
 
         $warnings = [];
@@ -34,9 +32,7 @@ class SqlGenerator
 
         foreach ($columns as $column) {
             $name = $column['name'];
-            if (!preg_match($identifierRegex, $name)) {
-                throw new \InvalidArgumentException("Invalid identifier provided for column: [{$name}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            }
+            IdentifierValidator::validate($name, 'column');
             $type = $column['type'];
             $nullable = $column['nullable'] ?? true;
             $isUdt = $column['is_udt'] ?? false;
@@ -58,8 +54,10 @@ class SqlGenerator
         $optionsList = ["schema_name '{$escapedRemoteSchema}'", "table_name '{$escapedTable}'"];
 
         foreach ($options as $key => $val) {
+            $optionKey = (string) $key;
+            IdentifierValidator::validateOptionKey($optionKey);
             $escapedVal = str_replace("'", "''", (string) $val);
-            $optionsList[] = "{$key} '{$escapedVal}'";
+            $optionsList[] = "{$optionKey} '{$escapedVal}'";
         }
         $optionsSql = implode(", ", $optionsList);
 

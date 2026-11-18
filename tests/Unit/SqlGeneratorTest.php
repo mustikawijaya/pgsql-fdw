@@ -157,4 +157,35 @@ class SqlGeneratorTest extends TestCase
             serverName: 'fdw_server_src'
         );
     }
+
+    public function test_it_rejects_malicious_table_option_keys(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid FDW option key');
+
+        $this->generator->generate(
+            source: 'src_db',
+            dest: 'dst_db',
+            table: 'users',
+            columns: [['name' => 'id', 'type' => 'bigint']],
+            targetSchema: 'fdw_src',
+            serverName: 'fdw_server_src',
+            options: ["bad'key" => 'true']
+        );
+    }
+
+    public function test_it_rejects_malicious_column_names(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid identifier');
+
+        $this->generator->generate(
+            source: 'src_db',
+            dest: 'dst_db',
+            table: 'users',
+            columns: [['name' => 'id; DROP TABLE x; --', 'type' => 'bigint']],
+            targetSchema: 'fdw_src',
+            serverName: 'fdw_server_src'
+        );
+    }
 }

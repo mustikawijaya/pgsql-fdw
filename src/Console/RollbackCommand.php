@@ -3,8 +3,9 @@
 namespace MustikaWijaya\PgsqlFdw\Console;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use MustikaWijaya\PgsqlFdw\Services\FdwMonitor;
-use MustikaWijaya\PgsqlFdw\Services\ConnectionManager;
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
 
 class RollbackCommand extends Command
 {
@@ -18,7 +19,7 @@ class RollbackCommand extends Command
 
     protected $description = 'Teardown foreign tables or servers on destination database';
 
-    public function handle(FdwMonitor $monitor, ConnectionManager $manager): int
+    public function handle(FdwMonitor $monitor): int
     {
         $dest = $this->option('dest');
         $table = $this->option('table');
@@ -37,44 +38,42 @@ class RollbackCommand extends Command
             return 1;
         }
 
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+        $targetSchema = $table ? ($schema ?: config('pgsql-fdw.default_schema', 'public')) : $schema;
 
-        if (!preg_match($identifierRegex, $dest)) {
-            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+        try {
+            IdentifierValidator::validate($dest, '--dest');
 
-        if ($table !== null && !preg_match($identifierRegex, $table)) {
-            $this->error("Invalid identifier provided for --table: [{$table}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            if ($table !== null) {
+                IdentifierValidator::validate($table, '--table');
+            }
 
-        if ($schema !== null && !preg_match($identifierRegex, $schema)) {
-            $this->error("Invalid identifier provided for --schema: [{$schema}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            if ($targetSchema !== null) {
+                IdentifierValidator::validate((string) $targetSchema, '--schema');
+            }
 
-        if ($server !== null && !preg_match($identifierRegex, $server)) {
-            $this->error("Invalid identifier provided for --server: [{$server}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            if ($server !== null) {
+                IdentifierValidator::validate($server, '--server');
+            }
 
-        if (!$force && !$this->confirm('Are you sure you want to proceed with teardown?')) {
-            $this->info('Rollback aborted.');
+            if (!$force && !$this->confirm('Are you sure you want to proceed with teardown?')) {
+                $this->info('Rollback aborted.');
+                return 0;
+            }
+
+            if ($table) {
+                $monitor->dropForeignTable($dest, (string) $targetSchema, $table, $cascade);
+                $this->info("✓ Foreign table [{$targetSchema}.{$table}] dropped.");
+            }
+
+            if ($server) {
+                $monitor->dropForeignServer($dest, $server, $cascade);
+                $this->info("✓ Foreign server [{$server}] dropped.");
+            }
+
             return 0;
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+            return 1;
         }
-
-        if ($table) {
-            $targetSchema = $schema ?: config('pgsql-fdw.default_schema', 'public');
-            $monitor->dropForeignTable($dest, $targetSchema, $table, $cascade);
-            $this->info("✓ Foreign table [{$targetSchema}.{$table}] dropped.");
-        }
-
-        if ($server) {
-            $monitor->dropForeignServer($dest, $server, $cascade);
-            $this->info("✓ Foreign server [{$server}] dropped.");
-        }
-
-        return 0;
     }
 }

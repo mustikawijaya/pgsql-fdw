@@ -222,4 +222,18 @@ class MonitorAndRollbackCommandTest extends TestCase
         $this->assertEquals(1, $exitCode);
         $this->assertStringContainsString('Invalid identifier', Artisan::output());
     }
+
+    public function test_rollback_command_rejects_malicious_default_schema_from_config(): void
+    {
+        config(['pgsql-fdw.default_schema' => 'public; DROP TABLE evil; --']);
+
+        $exitCode = Artisan::call('fdw:rollback', [
+            '--dest' => 'pgsql',
+            '--table' => 'users',
+            '--force' => true,
+        ]);
+
+        $this->assertEquals(1, $exitCode);
+        $this->assertStringContainsString('Invalid identifier', Artisan::output());
+    }
 }

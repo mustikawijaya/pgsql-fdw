@@ -5,13 +5,16 @@ namespace MustikaWijaya\PgsqlFdw\Services;
 use Illuminate\Support\Facades\DB;
 use MustikaWijaya\PgsqlFdw\Exceptions\ConnectionException;
 use MustikaWijaya\PgsqlFdw\Exceptions\FdwExecutionException;
+use MustikaWijaya\PgsqlFdw\Support\CredentialMasker;
+use MustikaWijaya\PgsqlFdw\Support\FdwLogger;
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
 use Throwable;
 
 class ConnectionManager
 {
     public function getConnectionConfig(string $name): array
     {
-        $this->validateIdentifier($name, 'connection name');
+        IdentifierValidator::validate($name, 'connection name');
 
         $connections = config('database.connections', []);
 
@@ -30,13 +33,13 @@ class ConnectionManager
 
     public function getServerName(string $source): string
     {
-        $this->validateIdentifier($source, 'source connection');
+        IdentifierValidator::validate($source, 'source connection');
         return 'fdw_server_' . $source;
     }
 
     public function getTargetSchema(string $source): string
     {
-        $this->validateIdentifier($source, 'source connection');
+        IdentifierValidator::validate($source, 'source connection');
         $useIsolation = config('pgsql-fdw.use_schema_isolation', true);
 
         if ($useIsolation) {
@@ -46,11 +49,11 @@ class ConnectionManager
             $schema = config('pgsql-fdw.default_schema', 'public');
         }
 
-        $this->validateIdentifier($schema, 'target schema');
+        IdentifierValidator::validate($schema, 'target schema');
         return $schema;
     }
 
-    public function getPreparationQueries(string $source): array
+    public function getPreparationQueries(string $source, bool $force = false): array
     {
         $sourceConfig = $this->getConnectionConfig($source);
         $serverName = $this->getServerName($source);
@@ -75,18 +78,26 @@ class ConnectionManager
         ];
 
         foreach ($serverOptions as $optKey => $optVal) {
+            $key = (string) $optKey;
+            IdentifierValidator::validateOptionKey($key);
             $escapedOptVal = str_replace("'", "''", (string) $optVal);
-            $optionsStrings[] = "{$optKey} '{$escapedOptVal}'";
+            $optionsStrings[] = "{$key} '{$escapedOptVal}'";
         }
         $serverOptionsSql = implode(', ', $optionsStrings);
+        $ifNotExists = $force ? '' : 'IF NOT EXISTS ';
 
-        return [
-            "CREATE EXTENSION IF NOT EXISTS postgres_fdw;",
-            "CREATE SERVER IF NOT EXISTS \"{$serverName}\" FOREIGN DATA WRAPPER postgres_fdw OPTIONS ({$serverOptionsSql});",
-            "CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER \"{$serverName}\" OPTIONS (user '{$username}', password '{$password}');",
-            "GRANT USAGE ON FOREIGN SERVER \"{$serverName}\" TO CURRENT_USER;",
-            "CREATE SCHEMA IF NOT EXISTS \"{$targetSchema}\";",
-        ];
+        $queries = ['CREATE EXTENSION IF NOT EXISTS postgres_fdw;'];
+
+        if ($force) {
+            $queries[] = "DROP SERVER IF EXISTS \"{$serverName}\" CASCADE;";
+        }
+
+        $queries[] = "CREATE SERVER {$ifNotExists}\"{$serverName}\" FOREIGN DATA WRAPPER postgres_fdw OPTIONS ({$serverOptionsSql});";
+        $queries[] = "CREATE USER MAPPING {$ifNotExists}FOR CURRENT_USER SERVER \"{$serverName}\" OPTIONS (user '{$username}', password '{$password}');";
+        $queries[] = "GRANT USAGE ON FOREIGN SERVER \"{$serverName}\" TO CURRENT_USER;";
+        $queries[] = "CREATE SCHEMA IF NOT EXISTS \"{$targetSchema}\";";
+
+        return $queries;
     }
 
     public function prepareDestination(string $source, string $dest, bool $force = false): void
@@ -94,7 +105,7 @@ class ConnectionManager
         $this->getConnectionConfig($source);
         $this->getConnectionConfig($dest);
 
-        $queries = $this->getPreparationQueries($source);
+        $queries = $this->getPreparationQueries($source, $force);
 
         foreach ($queries as $query) {
             $this->executeDdl($dest, $query);
@@ -103,13 +114,15 @@ class ConnectionManager
 
     public function executeDdl(string $connection, string $sql): void
     {
-        $this->validateIdentifier($connection, 'connection name');
+        IdentifierValidator::validate($connection, 'connection name');
 
         try {
             DB::connection($connection)->unprepared($sql);
         } catch (Throwable $e) {
-            $maskedSql = (string) preg_replace("/password\s+'(?:[^']|'')*'/i", "password '********'", $sql);
-            $maskedError = (string) preg_replace("/password\s+'(?:[^']|'')*'/i", "password '********'", $e->getMessage());
+            FdwLogger::error($connection, $e->getMessage(), $sql);
+
+            $maskedSql = CredentialMasker::mask($sql);
+            $maskedError = CredentialMasker::mask($e->getMessage());
 
             throw new FdwExecutionException(
                 "Failed executing DDL on [{$connection}]: {$maskedError}\nSQL: {$maskedSql}",
@@ -117,12 +130,7 @@ class ConnectionManager
                 $e
             );
         }
-    }
 
-    private function validateIdentifier(string $identifier, string $name = 'identifier'): void
-    {
-        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $identifier)) {
-            throw new \InvalidArgumentException("Invalid identifier provided for {$name}: [{$identifier}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-        }
+        FdwLogger::info($connection, $sql);
     }
 }

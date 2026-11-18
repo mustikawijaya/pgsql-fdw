@@ -4,6 +4,8 @@ namespace MustikaWijaya\PgsqlFdw\Services;
 
 use Illuminate\Support\Facades\DB;
 use MustikaWijaya\PgsqlFdw\Exceptions\FdwExecutionException;
+use MustikaWijaya\PgsqlFdw\Support\FdwLogger;
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
 use Throwable;
 
 class FdwMonitor
@@ -68,10 +70,8 @@ class FdwMonitor
 
     public function dropForeignTable(string $connection, string $schema, string $table, bool $cascade = false): void
     {
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
-        if (!preg_match($identifierRegex, $schema) || !preg_match($identifierRegex, $table)) {
-            throw new \InvalidArgumentException("Invalid identifier provided for schema or table. Only alphanumeric characters, dashes, and underscores are allowed.");
-        }
+        IdentifierValidator::validate($schema, 'schema');
+        IdentifierValidator::validate($table, 'table');
 
         $cascadeSql = $cascade ? ' CASCADE' : '';
         $sql = "DROP FOREIGN TABLE IF EXISTS \"{$schema}\".\"{$table}\"{$cascadeSql};";
@@ -79,20 +79,21 @@ class FdwMonitor
         try {
             DB::connection($connection)->unprepared($sql);
         } catch (Throwable $e) {
+            FdwLogger::error($connection, $e->getMessage(), $sql);
+
             throw new FdwExecutionException(
                 "Failed dropping foreign table [{$schema}.{$table}]: " . $e->getMessage(),
                 (int) $e->getCode(),
                 $e
             );
         }
+
+        FdwLogger::info($connection, $sql);
     }
 
     public function dropForeignServer(string $connection, string $server, bool $cascade = false): void
     {
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
-        if (!preg_match($identifierRegex, $server)) {
-            throw new \InvalidArgumentException("Invalid identifier provided for server. Only alphanumeric characters, dashes, and underscores are allowed.");
-        }
+        IdentifierValidator::validate($server, 'server');
 
         $cascadeSql = $cascade ? ' CASCADE' : '';
         $sql = "DROP SERVER IF EXISTS \"{$server}\"{$cascadeSql};";
@@ -100,11 +101,15 @@ class FdwMonitor
         try {
             DB::connection($connection)->unprepared($sql);
         } catch (Throwable $e) {
+            FdwLogger::error($connection, $e->getMessage(), $sql);
+
             throw new FdwExecutionException(
                 "Failed dropping foreign server [{$server}]: " . $e->getMessage(),
                 (int) $e->getCode(),
                 $e
             );
         }
+
+        FdwLogger::info($connection, $sql);
     }
 }

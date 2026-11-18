@@ -72,6 +72,9 @@ return [
 ];
 ```
 
+> [!TIP]
+> All executed DDL queries (success and errors) are logged to the configured `log_channel` with passwords automatically redacted (`password '********'`). Set `FDW_LOG_CHANNEL=none` or `null` to disable DDL logging.
+
 ---
 
 ## Usage & Artisan Commands
@@ -84,14 +87,14 @@ Sets up the FDW environment on the destination database, including the `postgres
 | :--- | :--- | :--- | :--- |
 | `--source=` | **Required** | `-` | Source connection name defined in `config/database.php`. |
 | `--dest=` | **Required** | `-` | Destination connection name defined in `config/database.php`. |
-| `--force` | Optional | `false` | Force recreation or ignore existing FDW servers/schemas. |
+| `--force` | Optional | `false` | Drops and recreates the foreign server (`DROP SERVER ... CASCADE`), clearing stale user mappings and attached foreign tables before preparing. |
 
 #### Usage Examples:
 ```bash
 # Standard preparation
 php artisan fdw:prepare --source=pgsql_central --dest=pgsql_local
 
-# Force preparation / ignore existing objects
+# Reset stale server/mappings after database restore (drops attached foreign tables via CASCADE)
 php artisan fdw:prepare --source=pgsql_central --dest=pgsql_local --force
 ```
 

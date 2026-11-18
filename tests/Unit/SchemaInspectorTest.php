@@ -106,4 +106,17 @@ class SchemaInspectorTest extends TestCase
         ];
         $this->assertEquals('timestamp(3) with time zone', $this->inspector->formatPostgreSqlType($rowTz));
     }
+
+    public function test_it_strips_only_single_leading_underscore_for_array_types(): void
+    {
+        $this->assertEquals('_custom_enum[]', $this->inspector->formatPostgreSqlType([
+            'data_type' => 'ARRAY',
+            'udt_name' => '__custom_enum',
+        ]));
+
+        $this->assertEquals('int4[]', $this->inspector->formatPostgreSqlType([
+            'data_type' => 'ARRAY',
+            'udt_name' => '_int4',
+        ]));
+    }
 }

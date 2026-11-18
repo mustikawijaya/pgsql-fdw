@@ -2,6 +2,7 @@
 
 namespace MustikaWijaya\PgsqlFdw\Tests\Unit;
 
+use Illuminate\Support\Facades\Log;
 use MustikaWijaya\PgsqlFdw\Services\FdwMonitor;
 use MustikaWijaya\PgsqlFdw\Tests\TestCase;
 
@@ -51,5 +52,21 @@ class FdwMonitorTest extends TestCase
         $this->expectExceptionMessage('Invalid identifier');
 
         $monitor->dropForeignServer('non_existent_conn', 'srv; DROP SERVER evil; --');
+    }
+
+    public function test_drop_foreign_table_still_throws_fdw_execution_exception_when_log_channel_is_invalid(): void
+    {
+        config(['pgsql-fdw.log_channel' => 'broken_channel']);
+        Log::shouldReceive('channel')
+            ->with('broken_channel')
+            ->once()
+            ->andThrow(new \InvalidArgumentException('Log [broken_channel] is not defined.'));
+
+        $monitor = new FdwMonitor();
+
+        $this->expectException(\MustikaWijaya\PgsqlFdw\Exceptions\FdwExecutionException::class);
+        $this->expectExceptionMessage('Failed dropping foreign table');
+
+        $monitor->dropForeignTable('non_existent_conn', 'public', 'users');
     }
 }

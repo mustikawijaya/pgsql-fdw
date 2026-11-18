@@ -3,7 +3,9 @@
 namespace MustikaWijaya\PgsqlFdw\Console;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use MustikaWijaya\PgsqlFdw\Services\FdwMonitor;
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
 
 class MonitorCommand extends Command
 {
@@ -21,10 +23,10 @@ class MonitorCommand extends Command
             return 1;
         }
 
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
-
-        if (!preg_match($identifierRegex, $dest)) {
-            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
+        try {
+            IdentifierValidator::validate($dest, '--dest');
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
             return 1;
         }
 

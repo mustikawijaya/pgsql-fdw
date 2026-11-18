@@ -3,10 +3,12 @@
 namespace MustikaWijaya\PgsqlFdw\Console;
 
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 use MustikaWijaya\PgsqlFdw\Services\ConnectionManager;
 use MustikaWijaya\PgsqlFdw\Services\SchemaInspector;
 use MustikaWijaya\PgsqlFdw\Services\SqlFileHandler;
 use MustikaWijaya\PgsqlFdw\Services\SqlGenerator;
+use MustikaWijaya\PgsqlFdw\Support\IdentifierValidator;
 
 class MakeSqlCommand extends Command
 {
@@ -39,44 +41,53 @@ class MakeSqlCommand extends Command
             return 1;
         }
 
-        $identifierRegex = '/^[a-zA-Z0-9_\-]+$/';
+        try {
+            IdentifierValidator::validate($source, '--source');
+            IdentifierValidator::validate($dest, '--dest');
 
-        if (!preg_match($identifierRegex, $source)) {
-            $this->error("Invalid identifier provided for --source: [{$source}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            if ($table !== null) {
+                IdentifierValidator::validate($table, '--table');
+            }
 
-        if (!preg_match($identifierRegex, $dest)) {
-            $this->error("Invalid identifier provided for --dest: [{$dest}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            $sourceConfig = $manager->getConnectionConfig($source);
+            $remoteSchema = $sourceConfig['schema'] ?? 'public';
+            $targetSchema = $manager->getTargetSchema($source);
+            $serverName = $manager->getServerName($source);
+            $tableOptions = config('pgsql-fdw.options.table', []);
 
-        if ($table !== null && !preg_match($identifierRegex, $table)) {
-            $this->error("Invalid identifier provided for --table: [{$table}]. Only alphanumeric characters, dashes, and underscores are allowed.");
-            return 1;
-        }
+            $tables = $all ? $inspector->getTableNames($source, $remoteSchema) : [$table];
 
-        $sourceConfig = $manager->getConnectionConfig($source);
-        $remoteSchema = $sourceConfig['schema'] ?? 'public';
-        $targetSchema = $manager->getTargetSchema($source);
-        $serverName = $manager->getServerName($source);
-        $tableOptions = config('pgsql-fdw.options.table', []);
+            if (empty($tables)) {
+                $this->warn('No tables found to generate.');
+                return 0;
+            }
 
-        $tables = $all ? $inspector->getTableNames($source, $remoteSchema) : [$table];
+            $generatedCount = 0;
 
-        if (empty($tables)) {
-            $this->warn('No tables found to generate.');
+            foreach ($tables as $t) {
+                $columns = $inspector->getTableColumns($source, $t, $remoteSchema);
+
+                if (empty($columns)) {
+                    if (!$all) {
+                        $this->error("Table [{$remoteSchema}.{$t}] does not exist or has no columns on [{$source}].");
+                        return 1;
+                    }
+
+                    $this->warn("Skipping table [{$remoteSchema}.{$t}]: no columns found.");
+                    continue;
+                }
+
+                $sql = $generator->generate($source, $dest, $t, $columns, $targetSchema, $serverName, $remoteSchema, $tableOptions);
+                $filePath = $fileHandler->save($dest, $source, $t, $sql);
+                $this->line("<info>Generated:</info> {$filePath}");
+                $generatedCount++;
+            }
+
+            $this->info("✓ Scaffolding complete for {$generatedCount} table(s).");
             return 0;
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+            return 1;
         }
-
-        foreach ($tables as $t) {
-            $columns = $inspector->getTableColumns($source, $t, $remoteSchema);
-            $sql = $generator->generate($source, $dest, $t, $columns, $targetSchema, $serverName, $remoteSchema, $tableOptions);
-            $filePath = $fileHandler->save($dest, $source, $t, $sql);
-            $this->line("<info>Generated:</info> {$filePath}");
-        }
-
-        $this->info("✓ Scaffolding complete for " . count($tables) . " table(s).");
-        return 0;
     }
 }

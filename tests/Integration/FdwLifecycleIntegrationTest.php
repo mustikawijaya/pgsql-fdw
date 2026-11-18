@@ -2,6 +2,7 @@
 
 namespace MustikaWijaya\PgsqlFdw\Tests\Integration;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use MustikaWijaya\PgsqlFdw\Services\FdwMonitor;
@@ -16,23 +17,29 @@ class FdwLifecycleIntegrationTest extends TestCase
     {
         parent::defineEnvironment($app);
 
+        $host = env('DB_TEST_HOST', '/var/run/postgresql');
+        $port = env('DB_TEST_PORT', '5432');
+        $database = env('DB_TEST_DATABASE', 'postgres');
+        $username = env('DB_TEST_USERNAME', 'postgres');
+        $password = env('DB_TEST_PASSWORD', '');
+
         $app['config']->set('database.connections.test_source', [
             'driver' => 'pgsql',
-            'host' => '/var/run/postgresql',
-            'port' => '5432',
-            'database' => 'postgres',
-            'username' => 'postgres',
-            'password' => '',
+            'host' => $host,
+            'port' => $port,
+            'database' => $database,
+            'username' => $username,
+            'password' => $password,
             'schema' => 'test_src_schema',
         ]);
 
         $app['config']->set('database.connections.test_dest', [
             'driver' => 'pgsql',
-            'host' => '/var/run/postgresql',
-            'port' => '5432',
-            'database' => 'postgres',
-            'username' => 'postgres',
-            'password' => '',
+            'host' => $host,
+            'port' => $port,
+            'database' => $database,
+            'username' => $username,
+            'password' => $password,
             'schema' => 'public',
         ]);
     }
@@ -181,5 +188,49 @@ class FdwLifecycleIntegrationTest extends TestCase
             '--force' => true,
         ]);
         $this->assertEquals(0, $exitCode);
+    }
+
+    public function test_fdw_prepare_force_resets_existing_server_and_foreign_tables_end_to_end(): void
+    {
+        // 1. Initial prepare, make-sql, migrate
+        $this->assertEquals(0, Artisan::call('fdw:prepare', [
+            '--source' => $this->sourceConn,
+            '--dest' => $this->destConn,
+        ]));
+        $this->assertEquals(0, Artisan::call('fdw:make-sql', [
+            '--source' => $this->sourceConn,
+            '--dest' => $this->destConn,
+            '--table' => 'e2e_products',
+        ]));
+        $this->assertEquals(0, Artisan::call('fdw:migrate', [
+            '--dest' => $this->destConn,
+        ]));
+
+        $initialData = DB::connection($this->destConn)->table('fdw_test_source.e2e_products')->get();
+        $this->assertEquals('Test Item', $initialData[0]->name);
+
+        // 2. Re-run prepare with --force (drops server + attached foreign tables via CASCADE and recreates)
+        $exitCode = Artisan::call('fdw:prepare', [
+            '--source' => $this->sourceConn,
+            '--dest' => $this->destConn,
+            '--force' => true,
+        ]);
+        $this->assertEquals(0, $exitCode);
+        $this->assertStringContainsString('CASCADE', Artisan::output());
+
+        // 3. Stale foreign table should no longer exist until re-migrated
+        try {
+            DB::connection($this->destConn)->table('fdw_test_source.e2e_products')->get();
+            $this->fail('Expected stale foreign table to be dropped by --force CASCADE');
+        } catch (QueryException $e) {
+            $this->assertStringContainsString('e2e_products', $e->getMessage());
+        }
+
+        // 4. Re-migrating restores working queries on the recreated server
+        $this->assertEquals(0, Artisan::call('fdw:migrate', [
+            '--dest' => $this->destConn,
+        ]));
+        $recreatedData = DB::connection($this->destConn)->table('fdw_test_source.e2e_products')->get();
+        $this->assertEquals('Test Item', $recreatedData[0]->name);
     }
 }
