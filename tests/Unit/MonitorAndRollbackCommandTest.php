@@ -16,7 +16,7 @@ class MonitorAndRollbackCommandTest extends TestCase
 
     public function test_monitor_command_renders_tables_with_stdclass_objects_without_errors(): void
     {
-        $mockMonitor = $this->createMock(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
+        $mockMonitor = $this->createStub(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
         $mockMonitor->method('getForeignServers')->willReturn([
             (object)['server_name' => 'srv_1', 'wrapper_name' => 'postgres_fdw', 'options' => 'host 127.0.0.1'],
         ]);
@@ -42,7 +42,7 @@ class MonitorAndRollbackCommandTest extends TestCase
 
     public function test_monitor_command_renders_tables_with_array_rows_without_errors(): void
     {
-        $mockMonitor = $this->createMock(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
+        $mockMonitor = $this->createStub(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
         $mockMonitor->method('getForeignServers')->willReturn([
             ['server_name' => 'srv_array', 'wrapper_name' => 'postgres_fdw', 'options' => 'host 127.0.0.1'],
         ]);
@@ -74,7 +74,7 @@ class MonitorAndRollbackCommandTest extends TestCase
 
     public function test_monitor_command_renders_empty_state_without_errors(): void
     {
-        $mockMonitor = $this->createMock(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
+        $mockMonitor = $this->createStub(\MustikaWijaya\PgsqlFdw\Services\FdwMonitor::class);
         $mockMonitor->method('getForeignServers')->willReturn([]);
         $mockMonitor->method('getUserMappings')->willReturn([]);
         $mockMonitor->method('getForeignTables')->willReturn([]);
