@@ -5,7 +5,7 @@ All notable changes to `mustikawijaya/pgsql-fdw` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-18
 
 ### Fixed
 - **PROB-01 (`fdw:make-sql` empty-table validation)**: Prevent `MakeSqlCommand` from writing empty/invalid `.sql` files when `--table` does not exist or has no columns (exits with code `1`), and warn/skip empty tables in `--all` mode with accurate generated file counts.
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PROB-03 (`log_channel` DDL audit logging)**: Connected `pgsql-fdw.log_channel` via `FdwLogger` to log DDL successes and failures with passwords redacted (`CredentialMasker`).
 - **PROB-05 & PROB-07 (Centralized validation & option key safety)**: Extracted `IdentifierValidator`, `CredentialMasker`, and `FdwLogger` under `src/Support/`, adding FDW server/table option key validation.
 - **PROB-08 (CI/CD & Testbench 11 alignment)**: Added `DB_TEST_*` env overrides in `FdwLifecycleIntegrationTest`, updated `require-dev` for Laravel 13 (`orchestra/testbench ^11.0`), and added `.github/workflows/tests.yml` across PHP 8.1–8.4 and Laravel 10–13.
+- **Documentation**: Expanded `Usage & Artisan Commands` in `README.md` with per-option parameter tables, Laravel Eloquent/DB query examples, `FDW_LOG_CHANNEL` notes, and `fdw:prepare --force` `CASCADE` reset warnings.
 
 ## [1.0.3] - 2026-10-05
 
